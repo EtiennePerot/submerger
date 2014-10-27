@@ -1,0 +1,3 @@
+[submodule "python-ass"]
+	path = python-ass
+	url = https://github.com/rfw/python-ass
