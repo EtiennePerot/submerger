@@ -56,6 +56,19 @@ def isolateAss(doc, prefix):
 isolateAss(doc1, '1')
 isolateAss(doc2, '2')
 
+# Rescale subtitles from different video sizes
+if doc1.play_res_y and doc2.play_res_y and doc1.play_res_y != doc2.play_res_y:
+	bigger, smaller = doc1, doc2
+	if doc1.play_res_y < doc2.play_res_y:
+		bigger, smaller = doc2, doc1
+	# Smaller doc should have its font sizes scaled to match bigger doc.
+	scale = float(bigger.play_res_y) / float(smaller.play_res_y)
+	for s in smaller.styles:
+		s.scale_x *= scale
+		s.scale_y *= scale
+	smaller.play_res_x, smaller.play_res_y = bigger.play_res_x, bigger.play_res_y
+
+# Merge styles and events
 doc1.styles.extend(doc2.styles)
 doc1.events.extend(doc2.events)
 
