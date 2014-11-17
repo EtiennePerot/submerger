@@ -9,8 +9,7 @@ import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--exclude', type=str, help='Exclude subtitle events which styles match the given regular expression. Regex is full-match.')
-parser.add_argument('file1', type=str, help='First .ass file.')
-parser.add_argument('file2', type=str, help='Second .ass file.')
+parser.add_argument('file', type=str, help='.ass files.', nargs='+')
 args = parser.parse_args()
 
 def tryOpen(f):
@@ -25,8 +24,7 @@ def tryOpen(f):
 			lastException = e
 	raise Exception('Cannot find suitable encoding for file %s. Last error: %s' % (f, lastException))
 
-doc1 = tryOpen(args.file1)
-doc2 = tryOpen(args.file2)
+docs = list(map(tryOpen, args.file))
 
 def excludeAss(doc, reg):
 	"""Remove all styles and events with the style name matching the given regex."""
@@ -40,8 +38,8 @@ def excludeAss(doc, reg):
 
 if args.exclude:
 	reg = re.compile(args.exclude, re.IGNORECASE)
-	excludeAss(doc1, reg)
-	excludeAss(doc2, reg)
+	for doc in docs:
+		excludeAss(doc)
 
 def isolateAss(doc, prefix):
 	"""Isolate style names by prefixing them with the given prefix.
@@ -53,25 +51,39 @@ def isolateAss(doc, prefix):
 	for e in doc.events:
 		e.style = '%s.%s' % (prefix, e.style)
 
-isolateAss(doc1, '1')
-isolateAss(doc2, '2')
+for i, doc in enumerate(docs):
+	isolateAss(doc, str(i))
 
 # Rescale subtitles from different video sizes
-if doc1.play_res_y and doc2.play_res_y and doc1.play_res_y != doc2.play_res_y:
-	bigger, smaller = doc1, doc2
-	if doc1.play_res_y < doc2.play_res_y:
-		bigger, smaller = doc2, doc1
-	# Smaller doc should have its font sizes scaled to match bigger doc.
-	scale = float(bigger.play_res_y) / float(smaller.play_res_y)
-	for s in smaller.styles:
-		s.scale_x *= scale
-		s.scale_y *= scale
-	smaller.play_res_x, smaller.play_res_y = bigger.play_res_x, bigger.play_res_y
+largestY = None
+correspondingX = None
+for doc in docs:
+	if not doc.play_res_x or not doc.play_res_y:
+		continue
+	currentY = float(doc.play_res_y)
+	if largestY is None or currentY > largestY:
+		largestY = currentY
+		correspondingX = doc.play_res_x
+if largestY is not None:
+	for doc in docs:
+		if not doc.play_res_x or not doc.play_res_y or float(doc.play_res_y) == largestY:
+			continue
+		scale = largestY / float(doc.play_res_y)
+		for s in doc.styles:
+			s.scale_x *= scale
+			s.scale_y *= scale
+		doc.play_res_x = correspondingX
+		doc.play_res_y = largestY
 
 # Merge styles and events
-doc1.styles.extend(doc2.styles)
-doc1.events.extend(doc2.events)
+mainDoc = docs[0]
+for doc in docs[1:]:
+	mainDoc.styles.extend(doc.styles)
+	mainDoc.events.extend(doc.events)
+
+# Resort
+mainDoc.events.sort(key=lambda e: e.start)
 
 output = io.StringIO()
-doc1.dump_file(output)
+mainDoc.dump_file(output)
 print(output.getvalue())
