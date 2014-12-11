@@ -19,7 +19,7 @@ def tryOpen(f):
 	lastException = None
 	for encoding in ('utf-8', 'utf-16', 'utf-16-le'):
 		try:
-			return ass.parse(open(f, 'r', encoding=encoding))
+			return ass.parse(open(f, 'r', encoding=encoding).readlines())
 		except Exception as e:
 			lastException = e
 	raise Exception('Cannot find suitable encoding for file %s. Last error: %s' % (f, lastException))
@@ -83,6 +83,24 @@ for doc in docs[1:]:
 
 # Resort
 mainDoc.events.sort(key=lambda e: e.start)
+
+# Fill in fields that not all styles and events share.
+styleFields = set()
+eventFields = set()
+for doc in docs:
+	for s in doc.styles:
+		styleFields.update(s.fields.keys())
+	for e in doc.events:
+		eventFields.update(e.fields.keys())
+for doc in docs:
+	for s in doc.styles:
+		for f in styleFields:
+			if f not in s.fields:
+				s.fields[f] = u''
+	for e in doc.events:
+		for f in eventFields:
+			if f not in e.fields:
+				e.fields[f] = u''
 
 output = io.StringIO()
 mainDoc.dump_file(output)
